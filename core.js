@@ -5,22 +5,6 @@
 (() => {
 'use strict';
 
-// ───────────────────────── 搬家带过来的存档 ─────────────────────────
-// 从旧地址 zurara.github.io/hands-on/ 跳过来时，存档放在 #carry=…&to=… 里（# 后面不会发到服务器）。
-// 只补这边还没有的，不覆盖；读完把地址栏还原成原来的页面。必须在下面任何读存档的代码之前跑。
-(() => {
-  const m = location.hash.match(/^#carry=([^&]*)(?:&to=(.*))?$/);
-  if (!m) return;
-  try {
-    const d = JSON.parse(decodeURIComponent(m[1]));
-    for (const k of Object.keys(d)) {
-      if (/^hands-on\.[a-z]+$/.test(k) && typeof d[k] === 'string' && localStorage.getItem(k) == null) localStorage.setItem(k, d[k]);
-    }
-  } catch (e) { /* 带坏了就算了，照常开始 */ }
-  const to = m[2] ? decodeURIComponent(m[2]) : '';
-  history.replaceState(null, '', location.pathname + (to ? '#' + to.replace(/^#/, '') : ''));
-})();
-
 // ───────────────────────── 小工具 ─────────────────────────
 
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
