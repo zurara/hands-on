@@ -297,6 +297,79 @@ body:not(.home) .crumb a { opacity: .62; }
   opacity: .7;
   font-variant-numeric: tabular-nums;
 }
+/* 今日一件：桌上压着的一张小条子。日期章在左，题目居中，进度在右 */
+.today {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin: 0 0 clamp(24px, 5vh, 48px);
+  padding: 12px 18px 12px 12px;
+  max-width: 100%;
+  box-sizing: border-box;
+  border: 1.5px solid var(--blue);
+  color: var(--blue);
+  text-decoration: none;
+  transform: rotate(-.8deg);
+  transition: transform .35s cubic-bezier(.2, .8, .2, 1), background-color .2s ease, color .2s ease;
+  outline-offset: 6px;
+}
+.today:hover, .today:focus-visible { transform: rotate(0deg) translateY(-3px); }
+.today .stamp {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  width: 58px;
+  height: 58px;
+  flex: none;
+  border-radius: 50%;
+  border: 1.5px solid var(--red);
+  color: var(--red);
+  transform: rotate(-9deg);
+}
+.today .stamp b {
+  font-size: 15px;
+  font-weight: 700;
+  letter-spacing: .02em;
+  font-variant-numeric: tabular-nums;
+}
+.today .stamp small {
+  font-size: 8px;
+  letter-spacing: .1em;
+  margin-top: 1px;
+}
+.today .body {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.today .ttl {
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: .14em;
+}
+.today .what {
+  font-size: 18px;
+  font-weight: 700;
+  letter-spacing: .08em;
+  white-space: nowrap;
+}
+.today .st {
+  margin-left: 8px;
+  font-size: 11px;
+  letter-spacing: .1em;
+  opacity: .7;
+  white-space: nowrap;
+}
+.today.done { background: var(--blue); color: var(--paper); }
+.today.done .st { opacity: .85; }
+.today.done .stamp { border-color: var(--paper); color: var(--paper); }
+
+@media (max-width: 420px) {
+  .today { flex-wrap: wrap; gap: 4px 14px; }
+  .today .st { margin-left: 72px; flex-basis: 100%; }
+}
+
 .more {
   margin: 40px 0 0;
   font-size: 11px;

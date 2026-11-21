@@ -6,7 +6,7 @@
 'use strict';
 const { store, sound, audio, paper, angDiff } = HO;
 
-const ORDER = ['embroidery', 'knitting'];
+const ORDER = HO.ORDER;
 
 const STR = {
   zh: {
@@ -25,6 +25,13 @@ const STR = {
     sound: '声音',
     lang: 'English',
     desc: '把打发时间的手作，变成屏幕上的小游戏。',
+    today: '今日一件',
+    todayWhat: (craft, n) => `${craft} · ${n} 排`,
+    dayLeft: n => `今天还差 ${n} 排`,
+    dayDone: s => s > 1 ? `今天做完了 · 连续 ${s} 天` : '今天做完了',
+    dayProgress: (r, n) => `做到第 ${r} / ${n} 排`,
+    dayToast: '今天这件做完了',
+    dayNew: '大家今天做的是同一件',
   },
   en: {
     series: 'Hands-on',
@@ -42,6 +49,13 @@ const STR = {
     sound: 'Sound',
     lang: '中文',
     desc: 'Idle-time handcrafts, turned into small screen games.',
+    today: 'Today’s piece',
+    todayWhat: (craft, n) => `${craft} · ${n} rows`,
+    dayLeft: n => `${n} more row${n > 1 ? 's' : ''} today`,
+    dayDone: s => s > 1 ? `Done today · ${s}-day streak` : 'Done today',
+    dayProgress: (r, n) => `Row ${r} of ${n}`,
+    dayToast: 'Today’s piece is done',
+    dayNew: 'Everyone makes the same piece today',
   },
 };
 
@@ -107,14 +121,18 @@ function frame(now) {
 
 // ───────────────────────── 路由 ─────────────────────────
 
+let daily = null;   // 在做今日一件时是当天的题目，否则 null
+let visit = 0;      // 每进一次门加一，「开始动手」每次进门只记一次
+
 function route() {
   const id = location.hash.replace(/^#\/?/, '');
-  const next = HO.games[id] || null;
-  game = next;
+  daily = id === 'today' ? HO.daily.today() : null;
+  game = HO.games[daily ? daily.craft : id] || null;
   document.body.classList.toggle('home', !game);
   ptr = null;
+  visit++;
   if (game) {
-    game.enter();
+    game.enter({ daily });
     renderHud();
     layout();
   } else {
@@ -122,6 +140,14 @@ function route() {
     paintHome();
   }
   renderChrome();
+  HO.page(daily ? '/today' : game ? `/${game.id}` : '/');
+}
+
+// 第一次走对一步：真的开始动手了（只是点进来看看的不算）
+function started() {
+  HO.trackOnce(visit, daily ? 'daily_start' : 'craft_start', {
+    craft: game.id, input: HO.mode, ...(daily ? { day: daily.key } : {}),
+  });
 }
 
 // ───────────────────────── 上面和下面 ─────────────────────────
@@ -129,8 +155,9 @@ function route() {
 function renderChrome() {
   elHome.textContent = t('series');
   elSep.hidden = elPiece.hidden = !game;
-  elPiece.textContent = game ? T(game.name) : '';
-  document.title = game ? `${t('series')} / ${T(game.name)}` : `${t('series')} · hands-on`;
+  const piece = game ? (daily ? `${t('today')} · ${T(game.name)}` : T(game.name)) : '';
+  elPiece.textContent = piece;
+  document.title = game ? `${t('series')} / ${piece}` : `${t('series')} · hands-on`;
   document.documentElement.lang = lang === 'zh' ? 'zh-Hans' : 'en';
   elSnd.innerHTML = HO.muted ? ICON_SND_OFF : ICON_SND_ON;
   elSnd.setAttribute('aria-label', t('sound'));
@@ -144,9 +171,21 @@ function renderHud() {
   if (!game) return;
   const h = game.hud(HO.mode);
   elLen.textContent = h.len;
-  elNext.textContent = h.next
-    ? t(game.verb === 'knit' ? 'knit_next' : 'stitch_next')(h.next.n, T(h.next.name))
-    : t('row')(h.row);
+  if (daily) {
+    // 第一次做够排数：记进作品墙。之后可以接着做，多做的不算
+    if (h.rows >= daily.rows && HO.daily.record(daily)) {
+      sound.fanfare();
+      toast('dayToast');
+      HO.track('daily_complete', { craft: game.id, day: daily.key, rows: daily.rows, streak: HO.daily.streak() });
+    }
+    elNext.textContent = HO.daily.done(daily.key)
+      ? t('dayDone')(HO.daily.streak())
+      : t('dayLeft')(daily.rows - h.rows);
+  } else {
+    elNext.textContent = h.next
+      ? t(game.verb === 'knit' ? 'knit_next' : 'stitch_next')(h.next.n, T(h.next.name))
+      : t('row')(h.row);
+  }
   elName.textContent = h.name.map(T).join(' · ');
   elCaps.innerHTML = h.steps.map(s => {
     const face = s.arrow == null ? s.face : ARROW(s.arrow);
@@ -182,7 +221,21 @@ const items = ORDER.map((id, i) => {
   return { gm, a, cv: a.querySelector('canvas'), no: a.querySelector('.no'), nm: a.querySelector('.nm'), sub: a.querySelector('.sub') };
 });
 
+function paintToday() {
+  const p = HO.daily.today(), gm = HO.games[p.craft];
+  const [, m, d] = p.key.split('-');
+  $('t-date').innerHTML = `<b>${m}.${d}</b><small>N°${String(p.n + 1).padStart(3, '0')}</small>`;
+  $('t-ttl').textContent = t('today');
+  $('t-what').textContent = t('todayWhat')(T(gm.name), p.rows);
+  const done = HO.daily.done(p.key), rows = gm.saved(p).rows;
+  $('t-st').textContent = done ? t('dayDone')(HO.daily.streak())
+    : rows > 0 ? t('dayProgress')(Math.min(rows + 1, p.rows), p.rows)
+    : t('dayNew');
+  $('today').classList.toggle('done', done);
+}
+
 function paintHome() {
+  paintToday();
   const dpr = Math.min(window.devicePixelRatio || 1, 2);
   for (const it of items) {
     it.no.textContent = `N°${it.gm.no}`;
@@ -228,7 +281,7 @@ window.addEventListener('keydown', e => {
   e.preventDefault();
   audio();
   setMode('keys');
-  game.key(K);
+  if (game.key(K)) started();
   renderHud();
   kick();
 });
@@ -266,7 +319,10 @@ cv.addEventListener('pointermove', e => {
   // 一划只算一步；手不抬、拐了弯才算下一步（可以连着画折线）
   if (ptr.fired && angDiff(ang, ptr.last) < 1.0) { ptr.x = e.clientX; ptr.y = e.clientY; return; }
   setMode('touch');
-  if (game.swipe(ang, ptr.fired) && navigator.vibrate && (!navigator.userActivation || navigator.userActivation.hasBeenActive)) navigator.vibrate(6);
+  if (game.swipe(ang, ptr.fired)) {
+    started();
+    if (navigator.vibrate && (!navigator.userActivation || navigator.userActivation.hasBeenActive)) navigator.vibrate(6);
+  }
   ptr.fired = true;
   ptr.last = ang;
   ptr.x = e.clientX;

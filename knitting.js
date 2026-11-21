@@ -52,12 +52,18 @@ const DIR_DEG = { E: 0, S: 90, N: -90, W: 180 };
 // row：正在织第几排（-1 是起针那排）；col：这一排织了几针；phase：这一针做到第几个动作
 let S = { seed: 1, row: 0, col: 0, phase: 0 };
 
+// 自由玩：自己的存档、随机种子；今日一件：另一个存档、当天的种子（拆光了也还是这一件）
+const FREE = { key: SAVE_KEY, seed: 0 };
+const cfgFor = daily => daily ? { key: 'hands-on.daily.knitting', seed: daily.seed } : FREE;
+let CFG = FREE;
+
 function fresh() {
-  return { seed: (Math.random() * 0xFFFFFFFF) >>> 0 || 1, row: 0, col: 0, phase: 0 };
+  return { seed: CFG.seed || (Math.random() * 0xFFFFFFFF) >>> 0 || 1, row: 0, col: 0, phase: 0 };
 }
 
 function load() {
-  const d = store.get(SAVE_KEY);
+  const d = store.get(CFG.key);
+  if (d && CFG.seed && d.seed !== CFG.seed) return fresh();   // 昨天的那件，不接着织
   if (d && Number.isFinite(d.row) && d.row >= 0) {
     return { seed: d.seed >>> 0 || 1, row: d.row | 0, col: clamp(d.col | 0, 0, COLS - 1), phase: clamp(d.phase | 0, 0, 3) };
   }
@@ -65,7 +71,7 @@ function load() {
 }
 
 function save() {
-  store.set(SAVE_KEY, { seed: S.seed, row: S.row, col: S.col, phase: S.phase });
+  store.set(CFG.key, { seed: S.seed, row: S.row, col: S.col, phase: S.phase });
 }
 
 // 每排的针法、颜色都由 seed 决定：拆了重织还是一样
@@ -516,7 +522,7 @@ HO.games.knitting = {
   keys: 'FJDK',
   floats: FLOAT,
 
-  enter() { S = load(); anims = []; pull = null; lift = 0; },
+  enter(opts) { CFG = cfgFor(opts && opts.daily); S = load(); anims = []; pull = null; lift = 0; },
   layout,
   update,
   draw,
@@ -579,6 +585,7 @@ HO.games.knitting = {
       len: ((S.row + S.col / COLS) * CM_PER_ROW).toFixed(1),
       next: nx ? { n: nx.unlock - S.row, name: nx.name } : null,
       row: S.row + 1,
+      rows: S.row,
       name: [pat.name, mv.name],
       steps: steps.map(st => {
         const isNext = st === e;
@@ -594,11 +601,15 @@ HO.games.knitting = {
     };
   },
 
-  savedLen() {
-    const keep = S;
+  savedLen() { return this.saved().len; },
+
+  // 不进门看一眼存档：自由玩（daily 不给）或今日一件织到哪了
+  saved(daily) {
+    const keepS = S, keepC = CFG;
+    CFG = cfgFor(daily);
     S = load();
-    const v = (S.row + S.col / COLS) * CM_PER_ROW;
-    S = keep;
+    const v = { rows: S.row, len: (S.row + S.col / COLS) * CM_PER_ROW };
+    S = keepS; CFG = keepC;
     return v;
   },
 

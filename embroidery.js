@@ -46,13 +46,19 @@ const order = si => STITCHES[si].keys.flatMap(([, ks]) => ks);   // 一格里各
 // row/col：正在绣的格；mask：这一格已经走了哪几段。每排用哪种针法由 seed 决定（拆了重绣还是同一种）。
 let S = { seed: 1, row: 0, col: 0, mask: 0 };
 
+// 自由玩：自己的存档、随机种子；今日一件：另一个存档、当天的种子（拆光了也还是这一件）
+const FREE = { key: SAVE_KEY, seed: 0 };
+const cfgFor = daily => daily ? { key: 'hands-on.daily.embroidery', seed: daily.seed } : FREE;
+let CFG = FREE;
+
 function fresh() {
-  return { seed: (Math.random() * 0xFFFFFFFF) >>> 0 || 1, row: 0, col: 0, mask: 0 };
+  return { seed: CFG.seed || (Math.random() * 0xFFFFFFFF) >>> 0 || 1, row: 0, col: 0, mask: 0 };
 }
 
 function load() {
-  let d = store.get(SAVE_KEY);
-  if (!d) {
+  let d = store.get(CFG.key);
+  if (d && CFG.seed && d.seed !== CFG.seed) d = null;   // 昨天的那件，不接着做
+  if (!d && CFG === FREE) {
     // 旧版「钩针围巾」的存档：同一个 seed 重放出来的针法顺序完全一样，直接接着绣
     const old = store.get('weave.v1');
     if (old && typeof old.st === 'string') d = old;
@@ -65,7 +71,7 @@ function load() {
 }
 
 function save() {
-  store.set(SAVE_KEY, { seed: S.seed, row: S.row, col: S.col, mask: S.mask });
+  store.set(CFG.key, { seed: S.seed, row: S.row, col: S.col, mask: S.mask });
 }
 
 let memo = { seed: null, st: [0], band: 0 };
@@ -476,7 +482,7 @@ HO.games.embroidery = {
   verb: 'stitch',
   keys: 'FJDK',
 
-  enter() { S = load(); anims = []; pull = null; scroll = 0; },
+  enter(opts) { CFG = cfgFor(opts && opts.daily); S = load(); anims = []; pull = null; scroll = 0; },
   layout,
   update,
   draw,
@@ -540,6 +546,7 @@ HO.games.embroidery = {
       len: ((S.row + S.col / COLS) * CM_PER_ROW).toFixed(1),
       next: nx ? { n: nx.unlock - S.row, name: nx.name } : null,
       row: S.row + 1,
+      rows: S.row,
       name: [st.name],
       steps: steps.map(s => {
         const isNext = s === e;
@@ -551,11 +558,15 @@ HO.games.embroidery = {
     };
   },
 
-  savedLen() {
-    const keep = S;
+  savedLen() { return this.saved().len; },
+
+  // 不进门看一眼存档：自由玩（daily 不给）或今日一件做到哪了
+  saved(daily) {
+    const keepS = S, keepC = CFG;
+    CFG = cfgFor(daily);
     S = load();
-    const v = (S.row + S.col / COLS) * CM_PER_ROW;
-    S = keep;
+    const v = { rows: S.row, len: (S.row + S.col / COLS) * CM_PER_ROW };
+    S = keepS; CFG = keepC;
     return v;
   },
 
