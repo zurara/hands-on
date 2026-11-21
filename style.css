@@ -370,6 +370,160 @@ body:not(.home) .crumb a { opacity: .62; }
   .today .st { margin-left: 72px; flex-basis: 100%; }
 }
 
+.wall-link {
+  margin: calc(-1 * clamp(12px, 3vh, 32px)) 0 clamp(20px, 4vh, 40px);
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: .14em;
+  color: var(--blue);
+  text-decoration: none;
+  padding: 6px 0;
+}
+.wall-link:hover, .wall-link:focus-visible { text-decoration: underline; text-underline-offset: 4px; }
+.wall-link[hidden] { display: none; }
+
+/* ───────── 作品墙 ───────── */
+
+#wall {
+  position: fixed;
+  inset: 0;
+  z-index: 1;
+  display: none;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  touch-action: pan-y;
+  -webkit-overflow-scrolling: touch;
+  padding: calc(var(--safe-t) + 64px) 16px calc(var(--safe-b) + 84px);
+  box-sizing: border-box;
+}
+body.wall #wall { display: block; }
+body.home.wall #home { display: none; }
+body.wall .top { background: linear-gradient(to bottom, var(--paper) 74%, rgba(246, 244, 239, 0)); }
+
+.wall-head {
+  margin: 8px 0 0;
+  text-align: center;
+  font-size: 18px;
+  font-weight: 700;
+  letter-spacing: .08em;
+}
+.wall-acts {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  align-items: center;
+  gap: 10px 14px;
+  margin: 18px auto 0;
+  max-width: 520px;
+  text-align: center;
+}
+.wall-acts small {
+  flex-basis: 100%;
+  font-size: 11px;
+  letter-spacing: .08em;
+  line-height: 1.6;
+  opacity: .65;
+}
+.btn {
+  font: inherit;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: .14em;
+  color: var(--paper);
+  background: var(--blue);
+  border: 1.5px solid var(--blue);
+  padding: 10px 18px;
+  cursor: pointer;
+  text-decoration: none;
+}
+.btn:hover, .btn:focus-visible { transform: translateY(-2px); }
+.btn.ghost { color: var(--blue); background: none; }
+
+/* 两条长长的织物并排：刺绣布往下长，围巾挂在针上 */
+.strips {
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  gap: clamp(12px, 6vw, 72px);
+  margin: 40px auto 0;
+}
+.strip {
+  width: min(250px, calc(50vw - 22px));
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+}
+.strip-name {
+  margin: 0 0 18px;
+  text-align: center;
+}
+.strip-name b {
+  display: block;
+  font-size: 15px;
+  font-weight: 700;
+  letter-spacing: .1em;
+}
+.strip-name small {
+  display: block;
+  margin-top: 4px;
+  min-height: 1.4em;
+  font-size: 10px;
+  letter-spacing: .1em;
+  opacity: .6;
+  font-variant-numeric: tabular-nums;
+}
+.strip-body {
+  position: relative;
+  min-height: 40px;
+}
+.strip-body canvas {
+  position: absolute;
+  left: 0;
+  display: block;
+  pointer-events: none;
+}
+/* 每天接缝旁的日期：刺绣写在左边，围巾写在右边，不挡织物 */
+.strip-tag {
+  position: absolute;
+  z-index: 1;
+  transform: translateY(-50%);
+  display: flex;
+  flex-direction: column;
+  font-size: 10px;
+  line-height: 1.25;
+  letter-spacing: .04em;
+  font-variant-numeric: tabular-nums;
+  pointer-events: none;
+  padding: 2px 3px;
+  background: rgba(246, 244, 239, .82);
+}
+.strip-tag b { font-weight: 700; }
+.strip-tag small { opacity: .55; font-size: 9px; }
+.strip.down .strip-tag { left: 0; }
+.strip.up .strip-tag { right: 0; text-align: right; }
+.strip-empty {
+  display: grid;
+  place-items: center;
+  height: 120px;
+  border: 1.5px dashed rgba(30, 107, 198, .28);
+  font-size: 11px;
+  letter-spacing: .12em;
+  opacity: .7;
+}
+.strip-todo {
+  display: grid;
+  place-items: center;
+  height: 64px;
+  margin: 10px 18%;
+  border: 1.5px dashed var(--red);
+  color: var(--red);
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: .12em;
+  text-decoration: none;
+}
+.strip-todo:hover, .strip-todo:focus-visible { border-style: solid; }
+
 .more {
   margin: 40px 0 0;
   font-size: 11px;

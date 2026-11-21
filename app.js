@@ -32,6 +32,15 @@ const STR = {
     dayProgress: (r, n) => `做到第 ${r} / ${n} 排`,
     dayToast: '今天这件做完了',
     dayNew: '大家今天做的是同一件',
+    wall: '作品墙',
+    wallLink: n => `作品墙 · ${n} 件 →`,
+    wallCount: n => n ? `挂了 ${n} 件` : '还没有作品。做完今日一件，就会挂上来',
+    wallShared: n => `一面分享来的墙 · ${n} 件`,
+    wallBad: '这个链接读不出来',
+    wallToday: '今天的还没做',
+    stripSum: (d, r) => d ? `${d} 天 · ${r} 排` : '',
+    stripEmpty: '还空着',
+    goToday: '去做今天的',
   },
   en: {
     series: 'Hands-on',
@@ -56,6 +65,15 @@ const STR = {
     dayProgress: (r, n) => `Row ${r} of ${n}`,
     dayToast: 'Today’s piece is done',
     dayNew: 'Everyone makes the same piece today',
+    wall: 'Wall',
+    wallLink: n => `Wall · ${n} piece${n > 1 ? 's' : ''} →`,
+    wallCount: n => n ? `${n} piece${n > 1 ? 's' : ''} on the wall` : 'Nothing yet. Finish today’s piece and it goes up here',
+    wallShared: n => `A shared wall · ${n} piece${n > 1 ? 's' : ''}`,
+    wallBad: 'This link can’t be read',
+    wallToday: 'Not done yet',
+    stripSum: (d, r) => d ? `${d} day${d > 1 ? 's' : ''} · ${r} rows` : '',
+    stripEmpty: 'Nothing yet',
+    goToday: 'Make today’s',
   },
 };
 
@@ -122,13 +140,16 @@ function frame(now) {
 // ───────────────────────── 路由 ─────────────────────────
 
 let daily = null;   // 在做今日一件时是当天的题目，否则 null
+let wall = null;    // 在看作品墙时：{ code }，code 为 null 是自己的墙，否则是分享来的
 let visit = 0;      // 每进一次门加一，「开始动手」每次进门只记一次
 
 function route() {
   const id = location.hash.replace(/^#\/?/, '');
   daily = id === 'today' ? HO.daily.today() : null;
-  game = HO.games[daily ? daily.craft : id] || null;
+  wall = id === 'wall' ? { code: null } : id.startsWith('wall/') ? { code: id.slice(5) } : null;
+  game = wall ? null : HO.games[daily ? daily.craft : id] || null;
   document.body.classList.toggle('home', !game);
+  document.body.classList.toggle('wall', !!wall);
   ptr = null;
   visit++;
   if (game) {
@@ -137,10 +158,11 @@ function route() {
     layout();
   } else {
     running = false;
-    paintHome();
+    if (wall) paintWall(); else paintHome();
   }
   renderChrome();
-  HO.page(daily ? '/today' : game ? `/${game.id}` : '/');
+  // 备份码是用户自己的数据，不送进统计
+  HO.page(wall ? (wall.code ? '/wall/shared' : '/wall') : daily ? '/today' : game ? `/${game.id}` : '/');
 }
 
 // 第一次走对一步：真的开始动手了（只是点进来看看的不算）
@@ -154,10 +176,10 @@ function started() {
 
 function renderChrome() {
   elHome.textContent = t('series');
-  elSep.hidden = elPiece.hidden = !game;
-  const piece = game ? (daily ? `${t('today')} · ${T(game.name)}` : T(game.name)) : '';
+  elSep.hidden = elPiece.hidden = !game && !wall;
+  const piece = wall ? t('wall') : game ? (daily ? `${t('today')} · ${T(game.name)}` : T(game.name)) : '';
   elPiece.textContent = piece;
-  document.title = game ? `${t('series')} / ${piece}` : `${t('series')} · hands-on`;
+  document.title = piece ? `${t('series')} / ${piece}` : `${t('series')} · hands-on`;
   document.documentElement.lang = lang === 'zh' ? 'zh-Hans' : 'en';
   elSnd.innerHTML = HO.muted ? ICON_SND_OFF : ICON_SND_ON;
   elSnd.setAttribute('aria-label', t('sound'));
@@ -232,37 +254,129 @@ function paintToday() {
     : rows > 0 ? t('dayProgress')(Math.min(rows + 1, p.rows), p.rows)
     : t('dayNew');
   $('today').classList.toggle('done', done);
+  const n = Object.keys(HO.daily.days()).length, link = $('wall-link');
+  link.hidden = !n;
+  link.textContent = t('wallLink')(n);
 }
 
 function paintHome() {
   paintToday();
-  const dpr = Math.min(window.devicePixelRatio || 1, 2);
   for (const it of items) {
     it.no.textContent = `N°${it.gm.no}`;
     it.nm.textContent = T(it.gm.name);
     const len = it.gm.savedLen();
     it.sub.textContent = len > 0 ? `${len.toFixed(1)} cm` : t('notYet');
-    const r = it.cv.getBoundingClientRect();
-    if (!r.width) continue;
-    it.cv.width = Math.round(r.width * dpr);
-    it.cv.height = Math.round(r.height * dpr);
-    const c = it.cv.getContext('2d');
-    c.setTransform(dpr, 0, 0, dpr, 0, 0);
-    c.clearRect(0, 0, r.width, r.height);
-    const f = it.gm.floats;
-    if (!f) { it.gm.preview(c, r.width, r.height); continue; }
-    // 悬空的东西：先画到离屏，再垫一层错开的软影子
-    off.width = it.cv.width;
-    off.height = it.cv.height;
-    const o = off.getContext('2d');
-    o.setTransform(dpr, 0, 0, dpr, 0, 0);
-    it.gm.preview(o, r.width, r.height);
-    const u = r.width * .066;
-    HO.floatShadow(c, off, r.width, r.height, u * f.dx, u * f.dy, f.alpha, dpr);
-    c.drawImage(off, 0, 0, r.width, r.height);
+    paintPiece(it.cv, it.gm, (c, w, h) => it.gm.preview(c, w, h));
   }
 }
+
+// 把一件东西画进一块画布；悬空的（围巾）先画到离屏，再垫一层错开的软影子
 const off = document.createElement('canvas');
+function paintPiece(cv, gm, draw) {
+  const dpr = Math.min(window.devicePixelRatio || 1, 2);
+  const r = cv.getBoundingClientRect();
+  if (!r.width) return;
+  cv.width = Math.round(r.width * dpr);
+  cv.height = Math.round(r.height * dpr);
+  const c = cv.getContext('2d');
+  c.setTransform(dpr, 0, 0, dpr, 0, 0);
+  c.clearRect(0, 0, r.width, r.height);
+  const f = gm.floats;
+  if (!f) { draw(c, r.width, r.height); return; }
+  off.width = cv.width;
+  off.height = cv.height;
+  const o = off.getContext('2d');
+  o.setTransform(dpr, 0, 0, dpr, 0, 0);
+  draw(o, r.width, r.height);
+  const u = r.width * .066;
+  HO.floatShadow(c, off, r.width, r.height, u * f.dx, u * f.dy, f.alpha, dpr);
+  c.drawImage(off, 0, 0, r.width, r.height);
+}
+
+// ───────────────────────── 作品墙 ─────────────────────────
+
+const elWHead = $('w-head'), elWActs = $('w-acts'), elWStrips = $('w-strips');
+let segs = [];   // 每天一块画布 { cv, gm, p, edge, w, done }
+let seen = null; // 滚到附近才画
+
+/* 作品墙 = 每种手艺一条长长的织物：每天做完的那几排接上去。
+ * 刺绣布往下长（最早一天在上、带流苏），围巾挂在针上往下垂（最新一天在上、挨着针）。
+ * 自己的墙在长的那一头留「今天的还没做」；分享来的墙只读。 */
+function paintWall() {
+  const shared = wall.code != null;
+  const list = shared ? HO.daily.decode(wall.code) : Object.keys(HO.daily.days());
+  elWActs.innerHTML = '';
+  elWStrips.innerHTML = '';
+  segs = [];
+  if (seen) seen.disconnect();
+  if (!list) { elWHead.textContent = t('wallBad'); return; }
+
+  const have = [...new Set(list)].map(k => HO.daily.prompt(k)).filter(p => p.n >= 0);
+  const today = HO.daily.today(), todo = !shared && !HO.daily.done(today.key);
+  elWHead.textContent = shared ? t('wallShared')(have.length) : t('wallCount')(have.length);
+
+  for (const craft of ORDER) {
+    const gm = HO.games[craft], st = gm.strip;
+    const ps = have.filter(p => p.craft === craft).sort((a, b) => a.n - b.n);
+    const col = document.createElement('div');
+    col.className = `strip ${st.grows}`;
+    const rows = ps.reduce((s, p) => s + p.rows, 0);
+    col.innerHTML = `<p class="strip-name"><b>${T(gm.name)}</b><small>${t('stripSum')(ps.length, rows)}</small></p><div class="strip-body"></div>`;
+    elWStrips.appendChild(col);
+    const body = col.querySelector('.strip-body'), w = body.clientWidth;
+
+    // 今天轮到这一种、还没做：在会长出来的那一头留一个红色虚线框
+    const todoEl = todo && today.craft === craft ? Object.assign(document.createElement('a'), {
+      href: '#/today', className: 'strip-todo', textContent: t('wallToday'),
+    }) : null;
+    if (todoEl && st.grows === 'up') col.insertBefore(todoEl, body);
+    if (!ps.length && !todoEl) body.innerHTML = `<span class="strip-empty">${t('stripEmpty')}</span>`;
+
+    const order = st.grows === 'down' ? ps : ps.slice().reverse();
+    const pad = st.pad(w);
+    let y = 0;
+    for (const p of order) {
+      const edge = { oldest: p === ps[0], newest: p === ps[ps.length - 1] };
+      const h = st.height(w, p, edge);
+      const cv = document.createElement('canvas');
+      cv.setAttribute('aria-hidden', 'true');
+      Object.assign(cv.style, { top: `${y - pad}px`, width: `${w}px`, height: `${h + 2 * pad}px` });
+      const [, m, d] = p.key.split('-');
+      const tag = document.createElement('span');
+      tag.className = 'strip-tag';
+      tag.style.top = `${y + h / 2}px`;
+      tag.innerHTML = `<b>${m}.${d}</b><small>${p.rows}</small>`;
+      body.append(cv, tag);
+      segs.push({ cv, gm, p, edge, w, done: false });
+      y += h;
+    }
+    if (ps.length) body.style.height = `${y}px`;
+    if (todoEl && st.grows === 'down') col.appendChild(todoEl);
+  }
+
+  // 分享来的墙只能看；下面只留一个去做今天的入口
+  if (shared) {
+    const a = document.createElement('a');
+    a.href = '#/today';
+    a.className = 'btn';
+    a.textContent = t('goToday');
+    elWActs.appendChild(a);
+  }
+  // 一年下来会有几百块画布：滚到附近才画，画过就不再管
+  const paint = s => {
+    if (s.done) return;
+    s.done = true;
+    paintPiece(s.cv, s.gm, c => s.gm.strip.draw(c, s.w, s.p, s.edge));
+  };
+  if ('IntersectionObserver' in window) {
+    seen = new IntersectionObserver(es => es.forEach(e => {
+      if (!e.isIntersecting) return;
+      seen.unobserve(e.target);
+      paint(segs.find(s => s.cv === e.target));
+    }), { root: $('wall'), rootMargin: '800px 0px' });
+    segs.forEach(s => seen.observe(s.cv));
+  } else segs.forEach(paint);
+}
 
 // ───────────────────────── 输入 ─────────────────────────
 
@@ -274,7 +388,7 @@ function setMode(m) {
 
 window.addEventListener('keydown', e => {
   if (e.metaKey || e.ctrlKey || e.altKey) return;
-  if (e.key === 'Escape' && game) { location.hash = '#/'; return; }
+  if (e.key === 'Escape' && (game || wall)) { location.hash = '#/'; return; }
   if (!game || e.repeat) return;
   const K = e.key.length === 1 ? e.key.toUpperCase() : '';
   if (!K || !game.keys.includes(K)) return;
@@ -349,13 +463,13 @@ elLang.addEventListener('click', () => {
   HO.lang = lang;
   store.set('hands-on.lang', lang);
   renderChrome();
-  if (game) { renderHud(); layout(); } else paintHome();
+  if (game) { renderHud(); layout(); } else if (wall) paintWall(); else paintHome();
 });
 
 let resizeT = 0;
 window.addEventListener('resize', () => {
   clearTimeout(resizeT);
-  resizeT = setTimeout(() => (game ? layout() : paintHome()), 60);
+  resizeT = setTimeout(() => (game ? layout() : wall ? paintWall() : paintHome()), 60);
 });
 window.addEventListener('hashchange', route);
 

@@ -174,8 +174,8 @@ function paintFringe(ctx, ox, oy) {
 
 const cacheY = r => (r - topRow) * L.rowH;
 
-function paintRowAt(ctx, ox, oy, r) {
-  if (r === 0) paintFringe(ctx, ox, oy);
+function paintRowAt(ctx, ox, oy, r, fringe = true) {
+  if (r === 0 && fringe) paintFringe(ctx, ox, oy);
   if (hasTail(r, 0)) paintTail(ctx, ox, oy, r, 0);
   const si = stOf(r), n = STITCHES[si].strokes.length;
   for (let c = 0; c < COLS; c++) {
@@ -568,6 +568,31 @@ HO.games.embroidery = {
     const v = { rows: S.row, len: (S.row + S.col / COLS) * CM_PER_ROW };
     S = keepS; CFG = keepC;
     return v;
+  },
+
+  /* 作品墙上的长条：每天做完的那几排接在前一天下面，一整块布越来越长。
+   * 布从上往下长：最早的一天在最上面、带流苏；每天一块画布，上下各多画 pad 让线头跨过接缝。
+   * 只要每天的种子和排数就能重画，不存图。 */
+  strip: {
+    grows: 'down',
+    cell: w => Math.max(3, Math.floor(w * .64 / COLS)),
+    pad: w => Math.ceil(HO.games.embroidery.strip.cell(w) * 1.2),
+    rowH: w => HO.games.embroidery.strip.cell(w) * 1.05,
+    // 这一天这块布占多高（不含 pad）；最上面那天多留流苏的位置
+    height(w, p, edge) {
+      const cell = this.cell(w);
+      return p.rows * this.rowH(w) + (edge.oldest ? cell * 1.6 : 0);
+    },
+    draw(ctx, w, p, edge) {
+      const keepS = S, keepL = L, keepMemo = memo;
+      const cell = this.cell(w);
+      S = { seed: p.seed, row: p.rows, col: 0, mask: 0 };
+      memo = { seed: null };
+      L = { cell, rowH: cell * 1.05, w: cell * .16, fw: cell * COLS, dpr: 1 };
+      const ox = Math.round((w - L.fw) / 2), oy = this.pad(w) + (edge.oldest ? cell * 1.6 : 0);
+      for (let r = 0; r < p.rows; r++) paintRowAt(ctx, ox, oy + r * L.rowH, r, !!edge.oldest);
+      S = keepS; L = keepL; memo = keepMemo;
+    },
   },
 
   // 首页工作桌上的小布样：固定一块好看的样子，四种针法各两排

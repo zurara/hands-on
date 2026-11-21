@@ -613,6 +613,39 @@ HO.games.knitting = {
     return v;
   },
 
+  /* 作品墙上的长条：每天织的那几排接在一起，挂在一根针上，围巾越来越长。
+   * 围巾从针往下垂：最新的一天在最上面、挂在针上；最早的一天在最下面、带起针。
+   * 每天一块画布，上下各多画 pad，线圈跨过接缝不会被切断。 */
+  strip: {
+    grows: 'up',
+    cw: w => Math.max(3, Math.floor(w * .58 / COLS)),
+    pad: w => Math.ceil(HO.games.knitting.strip.cw(w) * 2),   // 围巾悬空，影子落得远，pad 要够大
+    head: w => HO.games.knitting.strip.cw(w) * 1.25,   // 针那一截
+    height(w, p, edge) {
+      const cw = this.cw(w), rowH = Math.round(cw * .8);
+      return (p.rows + (edge.oldest ? 1 : 0)) * rowH + (edge.newest ? this.head(w) : 0);
+    },
+    draw(ctx, w, p, edge) {
+      const keepS = S, keepL = L, keepMemo = memo, kL = { ...tipL };
+      const R = p.rows, cw = this.cw(w), rowH = Math.round(cw * .8);
+      S = { seed: p.seed, row: R, col: 0, phase: 0 };
+      memo = null;
+      L = { cw, rowH, w: cw * .27, nr: Math.max(1.6, cw * .14), fw: cw * COLS, dpr: 1 };
+      L.x0 = Math.round((w - L.fw) / 2 + cw * .7);   // 针往左多伸出一截，整体往右挪，针和织物一起居中
+      const top = this.pad(w) + (edge.newest ? this.head(w) : 0);   // 最新一排的上沿
+      for (let r = edge.oldest ? -1 : 0; r < R; r++) paintRowAt(ctx, L.x0, top + (R - 1 - r) * rowH, r, 0);
+      if (edge.newest) {
+        Object.assign(tipL, { x: L.x0 + L.fw + cw * .9, y: top - cw * .62 });
+        drawNeedle(ctx, tipL, -1);
+        for (let k = 0; k < COLS; k++) {
+          const xc = L.x0 + (k + .5) * cw;
+          drawLoop(ctx, xc, top - rowH + rowH * .82, yAtL(xc), PAL[colOf(R - 1)], seedOf(R - 1, k, 5));
+        }
+      }
+      S = keepS; L = keepL; memo = keepMemo; Object.assign(tipL, kL);
+    },
+  },
+
   // 首页工作桌上的小样：挂在一根针上的一段，起伏针接平针
   preview(ctx, w, h) {
     const keepS = S, keepL = L, keepMemo = memo, kL = { ...tipL };
